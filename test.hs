@@ -1,11 +1,44 @@
-
+import System.Environment   
+import System.Directory  
+import System.IO
+import System.IO.Unsafe
 import Data.List as List
 import Data.Map as Map
 
+import Control.Concurrent
 
 
+children :: MVar [MVar ()]
+children = unsafePerformIO (newMVar [])
+
+waitForChildren :: IO ()
+waitForChildren = do
+ cs <- takeMVar children
+ case cs of
+   []   -> return ()
+   m:ms -> do
+      putMVar children ms
+      takeMVar m
+      waitForChildren
+    return (foldListOfMaps unpackedResults)
+
+    
+forkChild2 :: IO () -> Map String Int -> IO ThreadId
+forkChild2 io result = do
+    mvar <- newMVar result
+    childs <- takeMVar children
+    putMVar children (mvar:childs)
+    forkFinally io (\_ -> putMVar mvar Map.empty)
+
+forkChild :: IO () -> IO ThreadId
+forkChild io = do
+   mvar <- newEmptyMVar
+   childs <- takeMVar children
+   putMVar children (mvar:childs)
+   forkFinally io (\_ -> putMVar mvar ())
+   
 --Combine multiple lines of results
-testF g lines = foldListOfMaps $ lookupPairsFromLines lines g
+getResultsForLines g lines = foldListOfMaps $ lookupPairsFromLines lines g
 
 --Lookup pairs with max gap of g
 lookupPairs :: String -> Int -> [(String, Int)]
@@ -40,4 +73,5 @@ filterEmpty keyValues = List.filter (\(key,z) -> z > 0) keyValues
 foldListOfMaps :: [Map String Int] -> Map String Int
 foldListOfMaps xs = List.foldl (\acc x -> Map.unionWith (+) acc x) Map.empty xs
 
+lookupPairsFromLines :: [String] -> Int -> [Map String Int]
 lookupPairsFromLines lines g = List.map (\line -> Map.fromList $ lookupPairs line g) lines

@@ -1,29 +1,77 @@
 import System.Environment   
 import System.Directory  
-import System.IO  
-import Data.List
-import Data.Text
-import Data.Text.IO
+import System.IO
+import System.IO.Unsafe
+import Data.List as List
+import Data.Map as Map
 
-main = do  
-   readFile "input.txt"
+import Control.Concurrent
+
+--main = do  
+   --readF "input.txt"
 
 -- Line 1: gap constraint
 -- Line 2: top x pairs
--- Line 3-y: The files conaining data
+-- Line 3-y: The files containing data
 
-readFile :: [String] -> IO ()  
-readFile [fileName] = do  
+-- CONCURRENCY
+
+children :: MVar [MVar (Map String Int)]
+children = System.IO.Unsafe.unsafePerformIO (newMVar [])
+
+waitForChildren :: IO (Map String Int)
+waitForChildren = do
+    listOfResults <- takeMVar children
+    unpackedResults <- mapM takeMVar listOfResults
+    return (foldListOfMaps unpackedResults)
+
+    
+forkChild :: Map String Int -> IO ()
+forkChild result = do
+    mvar <- newMVar result
+    childs <- takeMVar children
+    putMVar children (mvar:childs)
+    --forkFinally (\_ -> putMVar mvar Map.empty)
+
+--
+
+
+
+readF :: String -> IO ()  
+readF fileName = do  
     contents <- System.IO.readFile fileName  
-    let lines = Data.List.lines contents
-    --Parse the first two lines
-    --Start processes for data files    
-    System.IO.putStr $ Data.List.unlines lines  
+    let lines = List.lines contents
+        g = read (lines !! 0) :: Int
+        k = read (lines !! 1) :: Int
+        fileNames = drop 2 lines
+        testFile = head fileNames
+        x = List.map (\fileName -> getResultsForFile fileName g) fileNames
+        
+    results <- waitForChildren
 
 
+    --testResult <- getResultsForFile testFile g
+        
+    --System.IO.putStr $ List.unlines fileNames
+    --System.IO.putStr $ showTree testResult
+    System.IO.putStr "Done.\n"
+    
+    System.IO.putStr $ show (length results)
+
+    System.IO.putStr "\n"
+
+
+getResultsForFile :: FilePath -> Int -> IO ()
+getResultsForFile fileName g = do 
+    contents <- System.IO.readFile fileName
+    let contentsLined = List.lines contents 
+        results = getResultsForLines contentsLined g
+    forkChild results
+    return ()
 
 --Combine multiple lines of results
-testF g lines = foldListOfMaps $ lookupPairsFromLines lines g
+getResultsForLines :: [String] -> Int -> Map String Int
+getResultsForLines lines g = foldListOfMaps $ lookupPairsFromLines lines g
 
 --Lookup pairs with max gap of g
 lookupPairs :: String -> Int -> [(String, Int)]
