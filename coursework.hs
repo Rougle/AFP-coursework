@@ -4,70 +4,56 @@ import System.IO
 import System.IO.Unsafe
 import Data.List as List
 import Data.Map as Map
-
 import Control.Concurrent
 
---main = do  
-   --readF "input.txt"
-
--- Line 1: gap constraint
--- Line 2: top x pairs
--- Line 3-y: The files containing data
-
--- CONCURRENCY
-
-children :: MVar [MVar (Map String Int)]
-children = System.IO.Unsafe.unsafePerformIO (newMVar [])
-
-waitForChildren :: IO (Map String Int)
-waitForChildren = do
-    listOfResults <- takeMVar children
-    unpackedResults <- mapM takeMVar listOfResults
-    return (foldListOfMaps unpackedResults)
-
-    
-forkChild :: Map String Int -> IO ()
-forkChild result = do
-    mvar <- newMVar result
-    childs <- takeMVar children
-    putMVar children (mvar:childs)
-    --forkFinally (\_ -> putMVar mvar Map.empty)
-
---
-
-
-
-readF :: String -> IO ()  
-readF fileName = do  
-    contents <- System.IO.readFile fileName  
+inputFileName = "input.txt"
+outputFileName = "output.txt"
+ 
+main = do  
+    contents <- System.IO.readFile inputFileName  
     let lines = List.lines contents
         g = read (lines !! 0) :: Int
         k = read (lines !! 1) :: Int
         fileNames = drop 2 lines
-        testFile = head fileNames
-        x = List.map (\fileName -> getResultsForFile fileName g) fileNames
-        
-    results <- waitForChildren
 
+    children <- newMVar ([])      
+    lineCount <- newMVar (0 :: Int) 
 
-    --testResult <- getResultsForFile testFile g
-        
-    --System.IO.putStr $ List.unlines fileNames
-    --System.IO.putStr $ showTree testResult
-    System.IO.putStr "Done.\n"
+    threads <- mapM (\fName -> makeThread (getResultsForFile fName g children lineCount)) fileNames
+    _ <- mapM_ takeMVar threads
+
+    results <- takeMVar children
+    totalNumberOfLines <- takeMVar lineCount
+
+    writeOutput $ formatResults totalNumberOfLines $ take k $ reverse . sortBy (\(_,a) (_,b) -> compare a b) . Map.toList $ foldListOfMaps results
+
     
-    System.IO.putStr $ show (length results)
+writeOutput :: String -> IO ()
+writeOutput content = appendFile outputFileName content
+    
+--Creates a thread which completion can be monitored with the mvar
+makeThread :: IO a -> IO (MVar ())
+makeThread proc = do
+    handle <- newEmptyMVar
+    _ <- forkFinally proc (\_ -> putMVar handle ())
+    return handle
 
-    System.IO.putStr "\n"
+--Turns result into pretty print
+formatResults :: Int -> [(String, Int)] -> String
+formatResults totalNumberOfLines results = List.foldl (\acc x -> acc ++ x) "" $ List.map (\(a:b:_, count) -> a : ' ' : b : ' ' : show count ++ ' ' : show totalNumberOfLines ++ "\n") results
 
-
-getResultsForFile :: FilePath -> Int -> IO ()
-getResultsForFile fileName g = do 
+--Gets results for single file
+getResultsForFile :: FilePath -> Int -> MVar [Map String Int] -> MVar Int -> IO ()
+getResultsForFile fileName g children lineCount = do 
     contents <- System.IO.readFile fileName
     let contentsLined = List.lines contents 
         results = getResultsForLines contentsLined g
-    forkChild results
-    return ()
+        numberOfLines = length contentsLined
+
+    list <- takeMVar children
+    putMVar children (list ++ [results])
+    totalNumberOfLines <- takeMVar lineCount
+    putMVar lineCount (totalNumberOfLines + numberOfLines)
 
 --Combine multiple lines of results
 getResultsForLines :: [String] -> Int -> Map String Int
