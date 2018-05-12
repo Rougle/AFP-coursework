@@ -7,8 +7,10 @@ import Data.Map as Map
 
 import Control.Concurrent
 
-getResultsForLines' :: [String] -> Int -> [[(String, Int)]]
-getResultsForLines' lines g = List.map (\line -> frequency $ getResultsForLine' g line) lines
+
+
+getResultsForLines' :: [String] -> Int -> [(String, Int)]
+getResultsForLines' lines g = frequency $ List.foldl (\acc x -> acc ++ x) [] $ List.map (\line -> getResultsForLine' g line) lines
 
 getResultsForLine' :: Int -> String -> [String]
 getResultsForLine' 0 _ = []
