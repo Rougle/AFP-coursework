@@ -86,9 +86,6 @@ getPairCount xs ys g = sum $ List.map (getPairCountForIndex ys g) xs
 getPairCountForIndex :: [Int] -> Int -> Int -> Int
 getPairCountForIndex ys g x = length $ List.filter (\z -> z <= (x + g + 1) && z > x) ys
 
-filterEmpty :: [(String, Int)] -> [(String, Int)] 
-filterEmpty keyValues = List.filter (\(key,z) -> z > 0) keyValues
-
 foldListOfMaps :: [Map String Int] -> Map String Int
 foldListOfMaps xs = List.foldl (\acc x -> Map.unionWith (+) acc x) Map.empty xs
 
