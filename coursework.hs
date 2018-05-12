@@ -59,6 +59,30 @@ getResultsForFile fileName g children lineCount = do
 getResultsForLines :: [String] -> Int -> Map String Int
 getResultsForLines lines g = foldListOfMaps $ lookupPairsFromLines lines g
 
+
+getResultsForLines' lines g = List.map (\line -> getAllPairsForLine' g line) lines
+
+    -- Take char
+    -- Make pair with gap
+        -- Minus gap length from total length, otherwise will fail
+    -- Put into list
+    -- Group list
+    -- AT MOST G CHARS BETWEEN
+
+
+
+getAllPairsForLine' 0 _ = []
+getAllPairsForLine' g [] = []
+getAllPairsForLine' g (x:[]) = []
+getAllPairsForLine' g (x:xs) = [(x,y) | y <- take (g + 1) xs] ++ getAllPairsForLine g xs
+
+
+getCounts xs =  List.map (\group -> (head group, length group)) $ groupTuples xs
+
+
+groupTuples xs = List.groupBy (\a b -> a == b) xs
+
+
 --Lookup pairs with max gap of g
 lookupPairs :: String -> Int -> [(String, Int)]
 lookupPairs line g = List.map (\(x,y) -> (x:y:[], lookupPair line (x,y) g)) charPairs 
