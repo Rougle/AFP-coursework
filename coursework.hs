@@ -31,18 +31,15 @@ main = do
 writeOutput :: String -> IO ()
 writeOutput content = appendFile outputFileName content
     
---Creates a thread which completion can be monitored with the mvar
 makeThread :: IO a -> IO (MVar ())
 makeThread proc = do
     handle <- newEmptyMVar
     _ <- forkFinally proc (\_ -> putMVar handle ())
     return handle
 
---Turns result into pretty print
 formatResults :: Int -> [(String, Int)] -> String
 formatResults totalNumberOfLines results = List.foldl (\acc x -> acc ++ x) "" $ List.map (\(a:b:_, count) -> a : ' ' : b : ' ' : show count ++ ' ' : show totalNumberOfLines ++ "\n") results
 
---Gets results for single file
 getResultsForFile :: FilePath -> Int -> MVar [(String, Int)] -> MVar Int -> IO ()
 getResultsForFile fileName g children lineCount = do 
     contents <- System.IO.readFile fileName
@@ -60,7 +57,7 @@ getResultsForLines lines g = frequency $ List.foldl (\acc x -> acc ++ x) [] $ Li
 
 getResultsForLine :: Int -> String -> [String]
 getResultsForLine 0 _ = []
-getResultsForLine g [] = []
+getResultsForLine _ [] = []
 getResultsForLine g (x:[]) = []
 getResultsForLine g (x:xs) = [ x:y:[] | y <- take (g + 1) xs] ++ getResultsForLine g xs
 

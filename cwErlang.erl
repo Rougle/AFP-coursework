@@ -2,14 +2,14 @@
 
 -import(array, [map/2]).
 
--export([charPairs/0]).
+-export([getResultsForFile/3, getResultsForLines/2, getResultsForLine/2, allGaps/2, allGaps2/3]).
 
 
 run() ->
     InputFile = readInput("input.txt"),
     K = list_to_integer(lists:nth(2, InputFile)),
     G = list_to_integer(lists:nth(1, InputFile)),
-    DataFiles = nthtail(2(InputFile)),
+    DataFiles = lists:nthtail(2, InputFile),
 
     Main_PID = self(),
     ThreadCount = length(DataFiles),
@@ -36,36 +36,38 @@ waitThreads(0, Res) -> Res;
 waitThreads(N, Res) ->
     receive   
         Result -> % This result is filled from function that counts the gaps
-            NewResult = lists:append(Result, NewResult),
+            NewResult = lists:append(Result, Res),
             waitThreads(N-1, NewResult)
     end.
 
 
-getResultsForFile(FileName, G, Main_PID -> 
-    link(Main_PID)
-    Lines <- readInput FileName,
+getResultsForFile(FileName, G, Main_PID) -> 
+    link(Main_PID),
+    Lines = readInput(FileName),
     LineCount = length(Lines),
-    Gaps = getResultsForLines(Lines, G),
-    Result = [[Gaps, LineCount]],
+    Pairs = getResultsForLines(Lines, G),
+    Result = [[Pairs, LineCount]],
     
     % send results back to main thread
     Main_PID ! Result.
 
-%GET RID OF MAP HERE
-getResultsForLines(Lines, G) -> foldListOfLists(lookupPairsFromLines(Lines, G))
+%ADD FREQ 
+getResultsForLines(Lines, G) -> group(lists:foldl(fun(Acc, X) -> lists:append(Acc, X) end, [], lists:map(fun(Line) -> getResultsForLine(G, Line) end, Lines))).
 
-lookupPairsFromLines(Lines, G -> List.map (fun(Line) -> lookupPairs(Line, G) Lines
+getResultsForLine(_, []) -> [];
+getResultsForLine(0, _) -> [];
+getResultsForLine(G, [X|Xs]) -> lists:append(getResultsForLine(G, Xs), [[X|Y] || Y <- lists:sublist(Xs, G+1)]).
 
-lookupPairs(Line, G) -> List.map (fun({X,Y} -> (X:Y:[]), lookupPair(Line (X,Y) G) end) charPairs() 
+group(List) ->
+    lists:map( fun({_,Y}) -> Y end,
+        dict:to_list(lists:foldr(fun({X,Y}, D) -> dict:append(X, Y, D) end, dict:new(), [ {X, X} || X <- List ]))).
 
+% HOW TO ERLANG THIS
+%frequency(Xs) -> toList(fromListWith (+) [(X, 1) | X <- Xs]).
+% HOW TO ERLANG THIS
+%combineResults(Xs) -> toList(fromListWith(+) Xs).
 
-% WRITE ELEMINDECES IN ERLANG? FIND OTHER SOLUTION?
-lookupPair(InputLine, {X,Y},G -> 
-    XIndeces = findCharIndeces(InputLine, X),
-    YIndeces = findCharIndeces(InputLine, Y),
-    getPairCount(XIndeces, YIndeces, G)
+readInput(InputFile) ->
+    {ok, Data} = file:read_file(InputFile),
+    string:tokens(erlang:binary_to_list(Data), "\n").
 
-
-
-% This might not work in erlang. Probably wont. Fuck.
-charPairs() -> [{I, J} || I <- [$a, $b, $c, $d, $e, $f, $g, $h, $i, $j, $k, $l, $m, $n, $o, $p, $q, $r, $s, $t, $u, $v, $w, $x, $y, $z], J <- [$a, $b, $c, $d, $e, $f, $g, $h, $i, $j, $k, $l, $m, $n, $o, $p, $q, $r, $s, $t, $u, $v, $w, $x, $y, $z] ].
