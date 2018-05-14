@@ -16,6 +16,7 @@ main = do
         k = read (lines !! 1) :: Int
         fileNames = drop 2 lines
 
+    -- Threads done in similar manner as "Terminating the program" in http://hackage.haskell.org/package/base-4.11.1.0/docs/Control-Concurrent.html
     children <- newMVar ([])      
     lineCount <- newMVar (0 :: Int) 
 

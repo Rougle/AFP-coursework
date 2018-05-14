@@ -1,9 +1,6 @@
 -module(cwErlang).
-
 -import(array, [map/2]).
-
--export([getResultsForFile/3, getResultsForLines/2, getResultsForLine/2, allGaps/2, allGaps2/3]).
-
+-export([run/0, getResultsForFile/3]).
 
 run() ->
     InputFile = readInput("input.txt"),
@@ -12,62 +9,67 @@ run() ->
     DataFiles = lists:nthtail(2, InputFile),
 
     Main_PID = self(),
-    ThreadCount = length(DataFiles),
 
-    % create worker threads which process the files
     lists:foreach(
         fun(FileName) -> 
             spawn(cwErlang, getResultsForFile, [FileName, G, Main_PID])
         end, DataFiles),
 
-    % wait here for all the results from the threads
-    Results = waitThreads(ThreadCount, []),
+    % There should be as many threads as DataFiles
+    Results = waitChildren(length(DataFiles), []),
 
-    % reduce the results of all threads to one result
-    % Gaps = reduceGaps(lists:map( fun(Res) -> hd(Res) end, Results), K),
-    % LineCount = lists:foldl( fun(Res, Sum) -> lists:last(Res) + Sum end, 0,Results),
+    Pairs = collectResults(lists:map(fun(Res) -> hd(Res) end, Results), K),
+    TotalLines = lists:foldl(fun(X, Acc) -> lists:last(X) + Acc end, 0, Results),
 
-    % write to output file
-    %writeOutput(Gaps, LineCount),
+    writeOutput(Pairs, TotalLines).
 
-    io:fwrite("done").
-  
-waitThreads(0, Res) -> Res;
-waitThreads(N, Res) ->
+waitChildren(0, Res) -> Res;
+waitChildren(N, Res) ->
     receive   
-        Result -> % This result is filled from function that counts the gaps
-            NewResult = lists:append(Result, Res),
-            waitThreads(N-1, NewResult)
+        Result ->
+            AllResults = lists:append(Result, Res),
+            waitChildren(N-1, AllResults)
     end.
-
 
 getResultsForFile(FileName, G, Main_PID) -> 
     link(Main_PID),
+
     Lines = readInput(FileName),
     LineCount = length(Lines),
     Pairs = getResultsForLines(Lines, G),
     Result = [[Pairs, LineCount]],
     
-    % send results back to main thread
     Main_PID ! Result.
 
-%ADD FREQ 
-getResultsForLines(Lines, G) -> group(lists:foldl(fun(Acc, X) -> lists:append(Acc, X) end, [], lists:map(fun(Line) -> getResultsForLine(G, Line) end, Lines))).
+getResultsForLines(Lines, G) -> flattenListLevel(lists:map(fun(Line) -> getResultsForLine(G, Line) end, Lines)).
 
 getResultsForLine(_, []) -> [];
 getResultsForLine(0, _) -> [];
 getResultsForLine(G, [X|Xs]) -> lists:append(getResultsForLine(G, Xs), [[X|Y] || Y <- lists:sublist(Xs, G+1)]).
 
+% Couldn't find a way to implement "fromListWith" from erlang, so I split it into to two functions. First grouping, and then counting
+% the length of each list. Group is modified version of this https://gist.github.com/jbpotonnier/1310406/25ed800ef6796a998706957a5ef7355f1db0ed4e
 group(List) ->
-    lists:map( fun({_,Y}) -> Y end,
+    lists:map(fun({_,Y}) -> Y end,
         dict:to_list(lists:foldr(fun({X,Y}, D) -> dict:append(X, Y, D) end, dict:new(), [ {X, X} || X <- List ]))).
 
-% HOW TO ERLANG THIS
-%frequency(Xs) -> toList(fromListWith (+) [(X, 1) | X <- Xs]).
-% HOW TO ERLANG THIS
-%combineResults(Xs) -> toList(fromListWith(+) Xs).
+groupsToResults(List) -> lists:map(fun(Xs) -> {lists:nth(1, Xs), length(Xs)} end, List).
+
+collectResults(Pairs, K) ->
+    GroupedPairs = group(lists:sort(flattenListLevel(Pairs))),
+    Counts = groupsToResults(GroupedPairs),
+    Sorted = lists:sort(fun({_, X}, {_, Y}) -> X >= Y end, Counts),
+    lists:sublist(Sorted, K).
 
 readInput(InputFile) ->
     {ok, Data} = file:read_file(InputFile),
     string:tokens(erlang:binary_to_list(Data), "\n").
 
+% Had problems with flatten function, thus fold
+flattenListLevel(Xs) -> lists:foldl(fun(X, Acc) -> lists:append(Acc, X) end, [], Xs).
+
+writeOutput(Pairs, TotalLines) ->
+    lists:foreach(fun(SingleRes) ->
+        Pair = element(1, SingleRes),
+        file:write_file("output.txt", io_lib:fwrite("~c ~c ~p ~p\n", [hd(Pair), tl(Pair), element(2, SingleRes), TotalLines ]), [append])
+    end, Pairs).
